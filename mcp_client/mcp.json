@@ -1,0 +1,14 @@
+{
+    "mcpServers": {
+      "report": {
+        "command": "uv",
+        "args": [
+          "--directory",
+          "../mcp_server_test",
+          "run",
+          "server.py"
+        ],
+        "transport": "stdio"
+      }
+    }
+  } 
