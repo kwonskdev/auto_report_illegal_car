@@ -306,29 +306,35 @@ async def call_anthropic_with_mcp(zip_content: bytes, meta: str, stt: str) -> Di
                     handle_parsing_errors=True
                 )
                 
-                # Run the agent
+                # Run the agent with return_intermediate_steps
                 print("🤖 Starting Agent execution...")
-                result = await agent_executor.ainvoke({
-                    "input": message_content
-                })
                 
-                response_content = result.get("output", "No response generated")
-                
-                # Extract tool names from intermediate steps
+                # Use astream_events to capture intermediate steps
                 tools_called = []
-                intermediate_steps = result.get("intermediate_steps", [])
-                for step in intermediate_steps:
-                    if hasattr(step, '__len__') and len(step) > 0:
-                        action = step[0]
-                        if hasattr(action, 'tool'):
-                            tools_called.append(action.tool)
+                response_content = ""
+                
+                async for event in agent_executor.astream_events(
+                    {"input": message_content}, 
+                    version="v2"
+                ):
+                    kind = event["event"]
+                    
+                    # Capture tool calls
+                    if kind == "on_tool_start":
+                        tool_name = event.get("name", "unknown_tool")
+                        tools_called.append(tool_name)
+                        print(f"🔧 Calling tool: {tool_name}")
+                    
+                    # Capture final output
+                    elif kind == "on_chain_end" and event.get("name") == "AgentExecutor":
+                        response_content = event["data"]["output"]["output"]
                 
                 return {
                     "status": "success",
                     "response": response_content,
                     "tools_used": len(langchain_tools),
                     "tools_called": tools_called,
-                    "agent_steps": len(intermediate_steps),
+                    "agent_steps": len(tools_called),
                     "zip_analysis": zip_info
                 }
                 

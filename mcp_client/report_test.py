@@ -100,7 +100,6 @@ async def test_report_endpoint():
         if response.status_code == 200:
             result = response.json()
             print("✅ Request successful!")
-            print(result)
             
             # Extract and display key information concisely
             if 'report_result' in result:
@@ -119,10 +118,15 @@ async def test_report_endpoint():
                 
                 # Display final response (text only)
                 if 'response' in report_result:
-                    response_text = report_result['response'][0]["text"]
+                    response_text = report_result['response']
                     # Extract text if it's a complex structure
                     if isinstance(response_text, str):
                         final_text = response_text
+                    elif isinstance(response_text, list) and len(response_text) > 0:
+                        if isinstance(response_text[0], dict) and "text" in response_text[0]:
+                            final_text = response_text[0]["text"]
+                        else:
+                            final_text = str(response_text[0])
                     else:
                         final_text = str(response_text)
                     
