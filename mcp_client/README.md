@@ -73,7 +73,7 @@ uv run python main.py
   "report_result": {
     "status": "success",
     "response": "안전신문고 신고서가 작성되었습니다...",
-    "tools_called": ["reverse_geocoding", "report_vehicle"],
+    "tools_called": ["get_address_from_geocoding", "report_traffic_violation"],
     "agent_steps": 2
   }
 }
@@ -109,7 +109,7 @@ uv run python report_test.py
 ✅ Request successful!
 
 📝 User Request: 차량번호 12가3456 차량이 신호를 위반하여...
-🔧 Tools Called: reverse_geocoding, report_vehicle
+🔧 Tools Called: get_address_from_geocoding, report_traffic_violation
 
 🤖 Final Response:
 ============================================================

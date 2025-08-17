@@ -3,12 +3,20 @@ import io
 import json
 import os
 import shutil
+import sys
 import tempfile
 import zipfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from dotenv import load_dotenv
+
+# Force UTF-8 encoding for Windows
+if sys.platform == "win32":
+    import codecs
+    sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
+    sys.stderr = codecs.getwriter("utf-8")(sys.stderr.detach())
+    os.environ["PYTHONIOENCODING"] = "utf-8"
 
 from fastapi import FastAPI, HTTPException, File, Form, UploadFile
 import uvicorn
@@ -276,12 +284,20 @@ async def call_anthropic_with_mcp(zip_content: bytes, meta: str, stt: str) -> Di
         위의 영상 파일들과 STT 내용, 메타데이터를 종합하여 안전신문고에 영상을 신고해주세요.
         
         단계별 작업:
-        1. 먼저 메타데이터에서 GPS 좌표를 찾아 reverse_geocoding 도구로 정확한 주소를 확인하세요.
+        1. 먼저 메타데이터에서 GPS 좌표를 찾아 get_address_from_geolocation 도구로 정확한 주소를 확인하세요.
         2. STT 내용에서 차량번호, 위반유형, 시간 등 필요한 정보를 추출하세요.
-        3. report_vehicle 도구를 사용하여 실제 안전신문고 신고서를 작성하세요.
-        4. 추가로 필요한 정보가 있다면 다른 도구들을 활용하세요.
+        3. **반드시 report_traffic_violation 도구를 사용하여 실제 안전신문고 신고서를 작성하세요.**
+        4. report_traffic_violation 도구 호출 시 다음 정보를 사용하세요:
+           - title: "교통법규 위반 신고"
+           - vehicle_number: STT에서 추출한 차량번호 (예: "12가3456")
+           - violation_type: "10" (신호위반)
+           - latitude, longitude: 메타데이터의 좌표
+           - datetime_str: 메타데이터의 시간
+           - description: STT 내용 요약
+           - video_files: 업로드된 MP4 파일 경로들
+           - reporter_name, reporter_phone, reporter_email: 메타데이터의 신고자 정보
         
-        모든 도구를 순차적으로 사용하여 완전한 신고서를 작성해주세요.
+        **중요: 반드시 get_address_from_geolocation과 report_traffic_violation 두 도구를 모두 호출해야 합니다.**
         """
         
         # Use Agent for multi-tool calling if tools are available
@@ -365,7 +381,7 @@ async def call_anthropic_with_mcp(zip_content: bytes, meta: str, stt: str) -> Di
         raise HTTPException(status_code=500, detail=f"Anthropic API call failed: {str(e)}")
 
 
-@app.post("/report")
+@app.post("/report_test")
 async def report(
     file: UploadFile = File(...), 
     meta: str = Form(...),
