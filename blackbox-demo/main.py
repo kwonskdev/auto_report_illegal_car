@@ -9,17 +9,83 @@ import requests
 import zipfile
 import io
 import json
-# import serial
+import queue
+import serial
+import platform
+def load_env_config(env_path=".env"):
+    """환경설정 파일(.env) 로드"""
+    default_config = {
+        "TARGET_DIR": "~/Documents/vidchunk",
+        "GPS_PORT": "/dev/ttyUSB0",
+        "GPS_BAUDRATE": "9600",
+        "TETHERING_SSID": "YourPhoneHotspot",
+        "TETHERING_PASSWORD": "your_password"
+    }
+    
+    config = {}
+    
+    try:
+        # .env 파일이 존재하면 로드
+        if os.path.exists(env_path):
+            with open(env_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    # 주석이나 빈 줄 스킵
+                    if line and not line.startswith('#'):
+                        if '=' in line:
+                            key, value = line.split('=', 1)
+                            config[key.strip()] = value.strip()
+            print(f"환경설정 파일 '{env_path}' 로드됨")
+        else:
+            # .env 파일이 없으면 기본값으로 생성
+            config = default_config
+            with open(env_path, 'w', encoding='utf-8') as f:
+                f.write("# 블랙박스 설정 파일\n")
+                f.write("# 각 항목을 실제 환경에 맞게 수정하세요\n\n")
+                f.write("# 비디오 저장 디렉토리 경로\n")
+                f.write(f"TARGET_DIR={default_config['TARGET_DIR']}\n\n")
+                f.write("# GPS 설정\n")
+                f.write("# Windows: COM3, Linux/Mac: /dev/ttyUSB0\n")
+                f.write(f"GPS_PORT={default_config['GPS_PORT']}\n")
+                f.write(f"GPS_BAUDRATE={default_config['GPS_BAUDRATE']}\n\n")
+                f.write("# WiFi 테더링 설정 (실제 핸드폰 테더링 정보로 변경하세요)\n")
+                f.write(f"TETHERING_SSID={default_config['TETHERING_SSID']}\n")
+                f.write(f"TETHERING_PASSWORD={default_config['TETHERING_PASSWORD']}\n")
+            print(f"기본 환경설정 파일 '{env_path}' 생성됨 - 설정을 확인하고 수정하세요")
+        
+        # 기본값으로 누락된 설정 채우기
+        for key, default_value in default_config.items():
+            if key not in config:
+                config[key] = default_value
+                print(f"누락된 설정 '{key}' 기본값 사용: {default_value}")
+        
+        return config
+        
+    except Exception as e:
+        print(f"환경설정 파일 로드 오류: {e}")
+        print("기본 설정값을 사용합니다")
+        return default_config
 
-# 저장 폴더
-TARGET_DIR = os.path.expanduser("~/Documents/vidchunk")
+# 환경설정 로드
+CONFIG = load_env_config()
+TARGET_DIR = os.path.expanduser(CONFIG['TARGET_DIR'])
+GPS_PORT = CONFIG['GPS_PORT']
+GPS_BAUDRATE = int(CONFIG['GPS_BAUDRATE'])
+TETHERING_SSID = CONFIG['TETHERING_SSID']
+TETHERING_PASSWORD = CONFIG['TETHERING_PASSWORD']
+
+print(f"설정 로드 완료:")
+print(f"  - 저장 디렉토리: {TARGET_DIR}")
+print(f"  - GPS 포트: {GPS_PORT}")
+print(f"  - 테더링 SSID: {TETHERING_SSID}")
+
 # 파일명 포맷
 FMT = "%Y%m%d%H%M%S"
 # 전후 탐색 윈도우 (초)
 WINDOW = 10
-# GPS 설정
-GPS_PORT = "/dev/ttyUSB0"  # Windows: COM3, Linux/Mac: /dev/ttyUSB0
-GPS_BAUDRATE = 9600
+
+
+
 
 class GPSManager:
     def __init__(self, port=GPS_PORT, baudrate=GPS_BAUDRATE):
@@ -127,17 +193,159 @@ class GPSManager:
             self.serial_conn.close()
 
 
+class WiFiManager:
+    def __init__(self, ssid, password):
+        self.ssid = ssid
+        self.password = password
+        self.system = platform.system()
+        
+    def is_connected_to_internet(self):
+        """인터넷 연결 상태 확인"""
+        try:
+            response = requests.get("http://www.google.com", timeout=5)
+            return response.status_code == 200
+        except:
+            return False
+    
+    def connect_to_wifi(self):
+        """WiFi 테더링에 연결"""
+        print(f"WiFi 연결 시도: {self.ssid}")
+        
+        if self.system == "Darwin":  # macOS
+            return self._connect_macos()
+        elif self.system == "Linux":
+            return self._connect_linux()
+        elif self.system == "Windows":
+            return self._connect_windows()
+        else:
+            print(f"지원하지 않는 운영체제: {self.system}")
+            return False
+    
+    def _connect_macos(self):
+        print("MAC OS")
+        """macOS에서 WiFi 연결"""
+        try:
+            
+            os.system("networksetup -setairportpower en1 on")
+            time.sleep(2)
+            
+            # WiFi 등록
+            os.system(f'security add-generic-password -D "AirPort network password" '
+          f'-a "{self.ssid}" -s "AirPort" -w "{self.password}" '
+          f'-T /usr/sbin/networksetup -U')
+
+            # WiFi 연결
+            cmd = f'networksetup -setairportnetwork en1 "{self.ssid}" "{self.password}"'
+            result = os.system(cmd)
+            
+            if result == 0:
+                print("WiFi 연결 성공")
+                # 연결 확인
+                time.sleep(5)
+                return self.is_connected_to_internet()
+            else:
+                print("WiFi 연결 실패")
+                return False
+        except Exception as e:
+            print(f"macOS WiFi 연결 오류: {e}")
+            return False
+    
+    def _connect_linux(self):
+        print("LINUX")
+        """Linux에서 WiFi 연결"""
+        try:
+            # nmcli를 사용한 WiFi 연결
+            cmd = f'nmcli device wifi connect "{self.ssid}" password "{self.password}"'
+            result = os.system(cmd)
+            
+            if result == 0:
+                print("WiFi 연결 성공")
+                time.sleep(5)
+                return self.is_connected_to_internet()
+            else:
+                print("WiFi 연결 실패")
+                return False
+        except Exception as e:
+            print(f"Linux WiFi 연결 오류: {e}")
+            return False
+    
+    def _connect_windows(self):
+        print("WINDOWS")
+        """Windows에서 WiFi 연결"""
+        try:
+            # netsh를 사용한 WiFi 연결
+            profile_xml = f'''<?xml version="1.0"?>
+<WLANProfile xmlns="http://www.microsoft.com/networking/WLAN/profile/v1">
+    <name>{self.ssid}</name>
+    <SSIDConfig>
+        <SSID>
+            <name>{self.ssid}</name>
+        </SSID>
+    </SSIDConfig>
+    <connectionType>ESS</connectionType>
+    <connectionMode>auto</connectionMode>
+    <MSM>
+        <security>
+            <authEncryption>
+                <authentication>WPA2PSK</authentication>
+                <encryption>AES</encryption>
+                <useOneX>false</useOneX>
+            </authEncryption>
+            <sharedKey>
+                <keyType>passPhrase</keyType>
+                <protected>false</protected>
+                <keyMaterial>{self.password}</keyMaterial>
+            </sharedKey>
+        </security>
+    </MSM>
+</WLANProfile>'''
+            
+            # 임시 프로필 파일 생성
+            profile_path = f"temp_{self.ssid}.xml"
+            with open(profile_path, 'w', encoding='utf-8') as f:
+                f.write(profile_xml)
+            
+            # 프로필 추가 및 연결
+            os.system(f'netsh wlan add profile filename="{profile_path}"')
+            result = os.system(f'netsh wlan connect name="{self.ssid}"')
+            
+            # 임시 파일 삭제
+            os.remove(profile_path)
+            
+            if result == 0:
+                print("WiFi 연결 성공")
+                time.sleep(5)
+                return self.is_connected_to_internet()
+            else:
+                print("WiFi 연결 실패")
+                return False
+        except Exception as e:
+            print(f"Windows WiFi 연결 오류: {e}")
+            return False
 
 
-def test_send_files():
-    file_paths = [
-    "/Users/nunu/Documents/vidchunk/20250803134048.mp4",
-    "/Users/nunu/Documents/vidchunk/20250803134058.mp4"]
-    upload_url="http://192.168.1.55:8000/upload-movie"
+
+
+def upload_video_files(file_paths: list, stt, upload_url="http://192.168.1.129:8001/report"):
+    """
+    비디오 파일들을 서버에 한 번에 업로드 (메타데이터 포함)
+    
+    Args:
+        file_paths: 업로드할 파일 경로들의 리스트
+        stt: 텍스트로 변환 한 사용자 음성 원본
+        upload_url: 업로드 서버 URL
+    
+    Returns:
+        bool: 모든 파일이 성공적으로 업로드되면 True
+    """
+    print(f"\nStart File upload - {len(file_paths)} files.")
+    print(f"Upload URL: {upload_url}")
+    print(f"STT: {stt}")
+    
     try:
         zip_buffer = io.BytesIO()
         file_names = []
-        total_size_mb = 0        
+        total_size_mb = 0
         metadata = {
             'total_files': str(file_paths),
             'file_type': 'blackbox_video',
@@ -162,104 +370,11 @@ def test_send_files():
                 file_names.append(file_name)
 
         zip_buffer.seek(0)
-        zip_data = zip_buffer.getvalue()
-        zip_size_mb = len(zip_data) / (1024 * 1024)
 
-        print(f"Compressed: {total_size_mb:.1f}MB → {zip_size_mb:.1f}MB")
+        files = {'file': ('blackbox_videos.zip', zip_buffer, 'application/zip')}
+        data = {"meta": metadata, "stt": stt}
 
-        # files = {   
-        #     'file': ('blackbox_videos.zip', zip_data, 'application/zip')  # 바이너리 데이터 + 파일명 + MIME 타입
-        # }
-
-        files = {"file": zip_data}
-        data = {"meta": json.dumps(metadata, ensure_ascii=False)} 
-        print(data)
-
-        response = requests.post(upload_url, files=files, data=data)
-        # 열린 파일들 정리
-        for file_obj in files.values():
-            if hasattr(file_obj[1], 'close'):
-                file_obj[1].close()
-        
-        if response.status_code == 200:
-            print("File upload success.")
-            print(f"Response: {response.text[:200]}")
-            return True
-        else:
-            print(f"File upload failed. (HTTP {response.status_code})")
-            print(f"Response: {response.text[:200]}")
-            return False
-            
-    except requests.exceptions.Timeout:
-        print("Timeout")
-        return False
-    except requests.exceptions.ConnectionError:
-        print("Connection error - Check server status.")
-        return False
-    except Exception as e:
-        print(f"Unexpected exception: {str(e)}")
-        return False
-    finally:
-        # 혹시 모를 파일 핸들 정리
-        try:
-            for file_obj in files.values():
-                if hasattr(file_obj[1], 'close'):
-                    file_obj[1].close()
-        except:
-            pass
-
-def upload_video_files(file_paths: list, upload_url="http://192.168.1.55:8000/upload-movie"):
-    """
-    비디오 파일들을 서버에 한 번에 업로드 (메타데이터 포함)
-    
-    Args:
-        file_paths: 업로드할 파일 경로들의 리스트
-        upload_url: 업로드 서버 URL
-    
-    Returns:
-        bool: 모든 파일이 성공적으로 업로드되면 True
-    """
-    print(f"\nStart File upload - {len(file_paths)} files.")
-    print(f"Upload URL: {upload_url}")
-    
-    try:
-        zip_buffer = io.BytesIO()
-        file_names = []
-        total_size_mb = 0
-        metadata = {
-            'total_files': str(file_paths),
-            'file_type': 'blackbox_video',
-            'chunk_duration': '10',
-            'format': 'mp4'
-        }   
-
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED, compresslevel=1) as zip_file:
-            for i, file_path in enumerate(file_paths):
-                if not os.path.exists(file_path):
-                    print(f"No such file: {os.path.basename(file_path)}")
-                    continue
-                
-                file_size = os.path.getsize(file_path)
-                file_size_mb = file_size / (1024 * 1024)
-                total_size_mb += file_size_mb
-                file_name = os.path.basename(file_path)
-
-                zip_file.write(file_path, file_name)
-                file_names.append(file_name)
-
-        zip_buffer.seek(0)
-        zip_data = zip_buffer.getvalue()
-        zip_size_mb = len(zip_data) / (1024 * 1024)
-
-        print(f"Compressed: {total_size_mb:.1f}MB → {zip_size_mb:.1f}MB")
-
-        # files = {   
-        #     'file': ('blackbox_videos.zip', zip_data, 'application/zip')  # 바이너리 데이터 + 파일명 + MIME 타입
-        # }
-
-        files = {"file": zip_data}
-        data = {"meta": json.dumps(metadata, ensure_ascii=False)} 
-
+        print(f"[body data] {data}")
 
         response = requests.post(upload_url, files=files, data=data)
         # 열린 파일들 정리
@@ -384,7 +499,7 @@ def get_valid_video_files(wakeup_time: datetime, window: int = WINDOW, wait_seco
     print(f"파일 부족 - {len(all_files)}개 파일 반환")
     return [str(f[0]) for f in all_files]
 
-def on_wakeup():
+def on_wakeup(stt):
     # 1) 호출 시각 기록
     now = datetime.now()
     print(f"[Wakeup]: {now.strftime(FMT)}")
@@ -400,7 +515,7 @@ def on_wakeup():
     for f in files:
         print("  -", f)
     
-    upload_video_files(files)
+    upload_video_files(files, stt)
 
 def audio_listener(stop_event: threading.Event):
     recognizer = sr.Recognizer()
@@ -422,7 +537,11 @@ def audio_listener(stop_event: threading.Event):
             text = recognizer.recognize_google(audio, language="ko-KR")
             print(f"[VOICE] {text}")
             if any(phrase in text for phrase in trigger_phrases):
-                on_wakeup()
+                print(IS_ONLINE)
+                if IS_ONLINE:
+                    on_wakeup(text)
+                else:
+                    print("WI-FI 연결을 확인하세요.")
         except sr.UnknownValueError:
             pass  # 인식 실패
         except sr.RequestError as e:
@@ -494,26 +613,24 @@ def video_recorder(stop_event: threading.Event):
         cv2.destroyAllWindows()
 
 def main():
-    # test_send_files()
-    # test_files = [
-    # "/Users/nunu/Documents/vidchunk/20250803134048.mp4",
-    # "/Users/nunu/Documents/vidchunk/20250803134058.mp4", 
-    # "/Users/nunu/Documents/vidchunk/20250803134108.mp4",
-    # "/Users/nunu/Documents/vidchunk/20250803134118.mp4"]
-    # meta_data = {
-    #     "title": "테스트 영상",
-    #     "description": "API 테스트용 영상입니다",
-    #     "duration": "120초"
-    # }
-    # with open("/Users/nunu/Documents/vidchunk/20250803134118.mp4", "rb") as f:   
-    #     files = {"file": f}
-    #     data = {"meta": str(meta_data)}        
-    #     response = requests.post("http://192.168.1.129:80ß00/upload-movie", files=files, data=data)
-
-
-    # upload_video_files(test_files)
-
+    global IS_ONLINE
     print(f"Save directory: {TARGET_DIR}")
+    
+    # WiFi 연결 확인 및 연결
+    wifi_manager = WiFiManager(TETHERING_SSID, TETHERING_PASSWORD)
+    print("인터넷 연결 상태 확인 중...")
+    if not wifi_manager.is_connected_to_internet():
+        print("인터넷에 연결되지 않음. 테더링 연결을 시도합니다.")
+        if wifi_manager.connect_to_wifi():
+            IS_ONLINE = True
+            print("테더링 연결 성공!")
+        else:
+            IS_ONLINE = False
+            print("테더링 연결 실패. 오프라인 모드로 동작합니다.")
+    else:
+        IS_ONLINE = True
+        print("인터넷 연결 확인됨.")
+    
     stop_event = threading.Event()
 
     try:
