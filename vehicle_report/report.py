@@ -20,7 +20,7 @@ class ReportInfo:
     report_datetime: datetime
 
 
-def login_safety_rul(driver, wait):
+def login_safety_url(driver, wait):
     # 로그인
 
     driver.get("https://www.safetyreport.go.kr/#/main/login/login")
@@ -82,7 +82,7 @@ def select_violation_type(driver, violation_type):
     '''
         Args:
             violation_type : {
-                "02" : 교통위반,
+                "02" : 교통위반, 
                 "03" : 이륜차 위반,
                 "10" : 난폭/보복운전,
                 "05" : 버스 전용차로 위반(고속도로 제외),
@@ -127,22 +127,22 @@ def find_location(driver, wait, address_query):
     # 메인 윈도우로 다시 전환
     driver.switch_to.window(main_window)
 
-def fill_report_form(driver, report_info: ReportInfo):
+def fill_report_form(driver, title, description, datetime_str):
     # 신고서 작성
 
     # 제목
-    driver.find_element(By.ID, "C_A_TITLE").send_keys(report_info.title)
+    driver.find_element(By.ID, "C_A_TITLE").send_keys(title)
     # 신고 내용
-    driver.find_element(By.ID, "C_A_CONTENTS").send_keys(report_info.contents)
+    driver.find_element(By.ID, "C_A_CONTENTS").send_keys(description)
     # 차량 번호 없음 체크
     checkbox = driver.find_element(By.ID, "chkNoVhrNo")
     if not checkbox.is_selected():
         checkbox.click()
 
     # 발생 일시 입력
-    driver.find_element(By.ID, "DEVEL_DATE").send_keys(report_info.report_datetime.strftime("%Y-%m-%d"))
-    Select(driver.find_element(By.ID, "DEVEL_TIME_HH")).select_by_value(report_info.report_datetime.strftime("%H"))
-    Select(driver.find_element(By.ID, "DEVEL_TIME_MM")).select_by_value(report_info.report_datetime.strftime("%M"))
+    driver.find_element(By.ID, "DEVEL_DATE").send_keys(datetime_str.strftime("%Y-%m-%d"))
+    Select(driver.find_element(By.ID, "DEVEL_TIME_HH")).select_by_value(datetime_str.strftime("%H"))
+    Select(driver.find_element(By.ID, "DEVEL_TIME_MM")).select_by_value(datetime_str.strftime("%M"))
     
     
     # 로그인 시 불 필요 항목
@@ -158,7 +158,19 @@ def fill_report_form(driver, report_info: ReportInfo):
         EC.element_to_be_clickable((By.CSS_SELECTOR, "div#smsAuth > button.ico_message.btnRequestPhoneAuthNo"))
     ).click()
 
-def run_report(report_info: ReportInfo):
+def run_report(
+    title: str,
+    vehicle_number: str,
+    violation_type: str,
+    location: str,
+    datetime_str: str,
+    description: str,
+    video_files: list[str] = None,
+    reporter_name: str = "익명",
+    reporter_phone: str = "비공개",
+    reporter_email: str = "비공개"
+    ) -> str:
+
     driver = init_driver()
     wait = WebDriverWait(driver, 15)
     # login_safety_rul(driver, wait)
@@ -176,16 +188,16 @@ def run_report(report_info: ReportInfo):
         click_cancel_button()
 
         # 위반 유형 선택
-        select_violation_type(driver, report_info.violation_type)
+        select_violation_type(driver, violation_type)
 
         # 파일 업로드
-        upload_file(driver, wait, report_info.file_name)
+        upload_file(driver, wait, video_files)
 
         # 위치 찾기
-        find_location(driver, wait, report_info.address_query)
+        find_location(driver, wait, location)
 
         # 신고 양식 작성 
-        fill_report_form(driver, report_info)
+        fill_report_form(driver, title, description, datetime_str)
 
         print("신고가 완료되었습니다.")
         
@@ -207,4 +219,16 @@ if __name__ == "__main__":
         address_query="판교역로 166",
         report_datetime=datetime.now()
     )
-    run_report(sample_report)
+
+    sample_report = {
+        'title':"난폭운전 신고",
+        'contents':"난폭운전 행위를 목격했습니다.",
+        # phone="01095259873",
+        'violation_type':"08",
+        'file_name':"temp.mp4",
+        'address_query':"판교역로 166",
+        'report_datetime':datetime.now()
+        }
+
+    
+    run_report(**sample_report)
