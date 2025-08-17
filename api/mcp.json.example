@@ -1,0 +1,13 @@
+{
+    "mcpServers": {
+      "report": {
+        "command": "uvx",
+        "args": [
+          "--from",
+          "git+https://github.com/kwonskdev/auto_report_illegal_car_mcp.git@test",
+          "auto_report"
+        ],
+        "transport": "stdio"
+      }
+    }
+  } 
