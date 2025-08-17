@@ -5,6 +5,9 @@ description = "MCP Server for Safety Report Tools using FastMCP"
 requires-python = ">=3.10"
 dependencies = [
     "fastmcp>=0.1.0",
+    "pyautogui>=0.9.54",
+    "selenium>=4.35.0",
+    "webdriver-manager>=4.0.2",
 ]
 
 [build-system]
