@@ -142,7 +142,7 @@ def reverse_geocoding(lat, lng):
             
             result['korean_address'] = ' '.join(korean_address_parts)
             
-            return result
+            return result['korean_address']
         
         return {
             'success': False,
@@ -202,14 +202,18 @@ def select_violation_type(driver, violation_type="02"):
     select_obj.select_by_value(violation_type)
 
 
-def upload_file(driver, wait, file_name):
+def upload_file(driver, wait, file_names):
     # 지정경로 파일 업로드
-    iframe = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "iframe[id^='raonkuploader_']")))
-    driver.switch_to.frame(iframe)
-    file_path = os.path.join(os.getcwd(), file_name)
-    file_input = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='file']")))
-    file_input.send_keys(file_path)
-    driver.switch_to.default_content()
+    
+    for file_name in file_names:
+        iframe = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "iframe[id^='raonkuploader_']")))
+        driver.switch_to.frame(iframe)
+        file_path = os.path.join(os.getcwd(), file_name)
+        file_input = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='file']")))
+        file_input.send_keys(file_path)
+        print(f"{file_name} 파일 업로드 완료")
+
+        driver.switch_to.default_content()
 
 
 def find_location(driver, wait, latitude, longitude): 
@@ -268,13 +272,13 @@ def fill_report_form(driver, title, description, datetime_str):
     ).click()
 
 def run_report(
-    title: str,
-    vehicle_number: str,
-    violation_type: str,
-    latitude: float,
-    longitude: float,
-    datetime_str: str,
-    description: str,
+    title: str = "교통위반 신고",
+    vehicle_number: str = "비공개",
+    violation_type: str = "02",
+    latitude: float = 0.0,
+    longitude: float = 0.0,
+    datetime_str: datetime=datetime.now(),
+    description: str = "교통위반 행위를 목격했습니다.",
     video_files: list[str] = None,
     reporter_name: str = "익명",
     reporter_phone: str = "비공개",
@@ -284,16 +288,18 @@ def run_report(
     driver = init_driver()
     wait = WebDriverWait(driver, 15)
     # login_safety_rul(driver, wait)
-    driver.get("https://www.safetyreport.go.kr")
+    driver.get("https://www.safetyreport.go.kr/#safereport/safereport3")
 
     try:
         # 신고하기 탭 클릭
-        wait.until(EC.element_to_be_clickable((By.XPATH, "//a[contains(@href,'#safereport')]"))).click()
-        time.sleep(3)
-        click_cancel_button()
+        # wait.until(EC.element_to_be_clickable((By.XPATH, "//a[contains(@href,'#safereport')]"))).click()
+        # time.sleep(3)
+        # click_cancel_button()
 
-        # 자동차 신고 탭 클릭
-        wait.until(EC.element_to_be_clickable((By.XPATH, "//a[@href='#safereport/safereport3']"))).click()
+        # # 자동차 신고 탭 클릭
+        # wait.until(EC.element_to_be_clickable((By.XPATH, "//a[@href='#safereport/safereport3']"))).click()
+
+        # 바로 차량 신고 페이지 접속
         time.sleep(3)
         click_cancel_button()
 
@@ -314,31 +320,43 @@ def run_report(
     except Exception as e:
         print("신고 중 오류 발생:", e)
     finally:
-        time.sleep(500000)
+        time.sleep(10)
 
         driver.quit()
 
 if __name__ == "__main__":
     
-    sample_report = ReportInfo(
-        title="난폭운전 신고",
-        contents="난폭운전 행위를 목격했습니다.",
-        # phone="01095259873",
-        violation_type="08",
-        file_name="temp.mp4",
-        address_query="판교역로 166",
-        report_datetime=datetime.now()
-    )
+#     sample_report = ReportInfo(
+#         title="난폭운전 신고",
+#         contents="난폭운전 행위를 목격했습니다.",
+#         # phone="01095259873",
+#         violation_type="08",
+#         file_name="temp.mp4",
+#         address_query="판교역로 166",
+#         report_datetime=datetime.now()
+#     )
 
-    sample_report = {
-        'title':"난폭운전 신고",
-        'contents':"난폭운전 행위를 목격했습니다.",
-        # phone="01095259873",
-        'violation_type':"08",
-        'file_name':"temp.mp4",
-        'address_query':"판교역로 166",
-        'report_datetime':datetime.now()
-        }
-
+#     sample_report = {
+#         'title':"난폭운전 신고",
+#         'contents':"난폭운전 행위를 목격했습니다.",
+#         # phone="01095259873",
+#         'violation_type':"08",
+#         'file_name':"temp.mp4",
+#         'address_query':"판교역로 166",
+#         'report_datetime':datetime.now()
+#         }
     
-    run_report(**sample_report)
+    run_report(
+        title = "교통위반 신고",
+        vehicle_number = "비공개",
+        violation_type = "02",
+        latitude = 37.3595704,
+        longitude = 127.105399,
+        datetime_str = datetime.now(),
+        description = "교통위반 행위를 목격했습니다.",
+        video_files = ["temp.mp4", "temp_2.mp4", "temp_3.mp4"],
+        reporter_name = "익명",
+        reporter_phone = "비공개",
+        reporter_email = "비공개"
+    )
+    # run_report(**sample_report)
