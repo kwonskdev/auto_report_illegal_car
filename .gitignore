@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# VSCode
+.vscode/
+
+# PyCharm
+.idea/
+
+# macOS
+.DS_Store
+
+# Test/coverage
+.coverage
+.tox/
+.mypy_cache/
+.pytest_cache/
+
+# dotenv
+.env
+.env.*
+
+# 기타
+*.log
+
+# uv: lock 파일은 커밋 (uv.lock은 제외하지 않음)
