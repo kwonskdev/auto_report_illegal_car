@@ -1,0 +1,12 @@
+[project]
+name = "blackbox-demo"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "opencv-python>=4.12.0.88",
+    "pyaudio>=0.2.14",
+    "requests>=2.32.4",
+    "speechrecognition>=3.14.3",
+]
