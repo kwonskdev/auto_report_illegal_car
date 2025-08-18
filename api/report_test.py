@@ -1,22 +1,12 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Test script for MCP Client Report API
 Tests the /report endpoint with a sample ZIP file containing MP4 videos
 """
 
 import asyncio
-import sys
-import os
-
-# Force UTF-8 encoding for Windows
-if sys.platform == "win32":
-    import codecs
-    sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
-    sys.stderr = codecs.getwriter("utf-8")(sys.stderr.detach())
-    os.environ["PYTHONIOENCODING"] = "utf-8"
-
 import json
+import os
 import tempfile
 import zipfile
 from pathlib import Path
@@ -63,7 +53,7 @@ async def test_report_endpoint():
     
     # API endpoint
     api_url = "http://localhost:8001"
-    report_endpoint = f"{api_url}/report_test"
+    report_endpoint = f"{api_url}/report"
     
     try:
         # Create sample ZIP file
